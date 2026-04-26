@@ -703,15 +703,6 @@ struct ResolvedPreset {
 /// Primary source: secrets store (`oauth:chatgpt` key in encrypted SQLite DB).
 /// Fallback: legacy `chatgpt-oauth.json` file for pre-migration installs.
 fn read_chatgpt_oauth_token() -> Option<String> {
-    // Try secrets store first (current path)
-    #[cfg(feature = "secrets")]
-    {
-        if let Some(token) = read_chatgpt_token_from_secrets() {
-            return Some(token);
-        }
-    }
-
-    // Fallback: legacy file
     read_chatgpt_token_from_legacy_file()
 }
 
@@ -741,68 +732,6 @@ fn read_chatgpt_token_from_legacy_file() -> Option<String> {
         .get("access_token")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
-}
-
-/// Read and refresh ChatGPT token from the encrypted secrets store.
-#[cfg(feature = "secrets")]
-fn read_chatgpt_token_from_secrets() -> Option<String> {
-    use screenpipe_secrets::keychain::{get_key, KeyResult};
-
-    let data_dir = crate::paths::default_screenpipe_data_dir();
-    let db_path = data_dir.join("db.sqlite");
-    if !db_path.exists() {
-        return None;
-    }
-
-    let secret_key = match get_key() {
-        KeyResult::Found(k) => Some(k),
-        _ => None,
-    };
-
-    let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
-
-    // We're in a sync context but need async for sqlx. Use block_in_place
-    // since the caller is always on a tokio runtime.
-    let result = tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(async {
-            let pool = sqlx::SqlitePool::connect(&db_url).await.ok()?;
-            let store = screenpipe_secrets::SecretStore::new(pool, secret_key)
-                .await
-                .ok()?;
-            let bytes = store.get("oauth:chatgpt").await.ok()??;
-            let mut token_data: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let expires_at = token_data
-                .get("expires_at")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
-
-            if now >= expires_at.saturating_sub(60) {
-                refresh_chatgpt_token(&mut token_data, now);
-                // Write refreshed token back to secrets store
-                if let Ok(updated_bytes) = serde_json::to_vec(&token_data) {
-                    if let Err(e) = store.set("oauth:chatgpt", &updated_bytes).await {
-                        tracing::warn!("failed to write refreshed ChatGPT token to secrets: {}", e);
-                    }
-                }
-            }
-
-            token_data
-                .get("access_token")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-        })
-    });
-
-    if result.is_none() {
-        tracing::debug!("ChatGPT OAuth token not found in secrets store");
-    }
-
-    result
 }
 
 /// Refresh an expired ChatGPT OAuth token using the refresh_token grant.

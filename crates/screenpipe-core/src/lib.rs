@@ -22,7 +22,3 @@ pub mod pii_removal;
 pub use pii_removal::*;
 
 pub use language::{Language, TESSERACT_LANGUAGES};
-#[cfg(feature = "cloud-sync")]
-pub mod sync;
-#[cfg(feature = "cloud-sync")]
-pub use sync::*;

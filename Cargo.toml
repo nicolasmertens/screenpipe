@@ -1,8 +1,29 @@
 [workspace]
+# secondbrain fork: keep only the capture/storage/event foundation.
+# Excluded crates remain on disk for reference but are not built:
+#   - screenpipe-engine: upstream daemon + HTTP API; we ship our own.
+#   - screenpipe-connect: cloud OAuth integrations.
+#   - screenpipe-config: tied to engine config.
+#   - screenpipe-apple-intelligence: gate later if needed.
+#   - screenpipe-vault: cloud storage features.
+#   - apps/screenpipe-app-tauri/src-tauri: upstream UI; we ship our own.
 members = [
-    "crates/*",
+    "crates/screenpipe-core",
+    "crates/screenpipe-events",
+    "crates/screenpipe-screen",
+    "crates/screenpipe-db",
+    "crates/screenpipe-a11y",
+    "crates/screenpipe-audio",
+    "crates/screenpipe-config",
 ]
-exclude = ["apps/screenpipe-app-tauri/src-tauri", "crates/screenpipe-integrations"]
+exclude = [
+    "apps/screenpipe-app-tauri/src-tauri",
+    "crates/screenpipe-integrations",
+    "crates/screenpipe-engine",
+    "crates/screenpipe-connect",
+    "crates/screenpipe-apple-intelligence",
+    "crates/screenpipe-vault",
+]
 resolver = "2"
 
 [workspace.package]

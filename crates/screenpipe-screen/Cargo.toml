@@ -31,9 +31,6 @@ anyhow = "1.0.86"
 
 image-compare = "0.4.1"
 
-# Integrations
-screenpipe-connect = { path = "../screenpipe-connect" }
-
 # Lanuage specification
 screenpipe-core = { path = "../screenpipe-core" }
 screenpipe-db = { path = "../screenpipe-db" }

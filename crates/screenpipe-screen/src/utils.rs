@@ -12,7 +12,6 @@ use tracing::{debug, warn};
 
 #[derive(Clone, Debug, Default)]
 pub enum OcrEngine {
-    Unstructured,
     #[default]
     Tesseract,
     WindowsNative,
@@ -23,7 +22,6 @@ pub enum OcrEngine {
 impl From<OcrEngine> for screenpipe_db::OcrEngine {
     fn from(val: OcrEngine) -> Self {
         match val {
-            OcrEngine::Unstructured => screenpipe_db::OcrEngine::Unstructured,
             OcrEngine::Tesseract => screenpipe_db::OcrEngine::Tesseract,
             OcrEngine::WindowsNative => screenpipe_db::OcrEngine::WindowsNative,
             OcrEngine::AppleNative => screenpipe_db::OcrEngine::AppleNative,
@@ -37,7 +35,7 @@ impl From<OcrEngine> for screenpipe_db::OcrEngine {
 impl From<screenpipe_db::OcrEngine> for OcrEngine {
     fn from(engine: screenpipe_db::OcrEngine) -> Self {
         match engine {
-            screenpipe_db::OcrEngine::Unstructured => OcrEngine::Unstructured,
+            screenpipe_db::OcrEngine::Unstructured => OcrEngine::Tesseract,
             screenpipe_db::OcrEngine::Tesseract => OcrEngine::Tesseract,
             screenpipe_db::OcrEngine::WindowsNative => OcrEngine::WindowsNative,
             screenpipe_db::OcrEngine::AppleNative => OcrEngine::AppleNative,
@@ -69,7 +67,6 @@ impl std::str::FromStr for OcrEngine {
         match s {
             "tesseract" => Ok(Self::Tesseract),
             "windows-native" => Ok(Self::WindowsNative),
-            "unstructured" => Ok(Self::Unstructured),
             "apple-native" => Ok(Self::AppleNative),
             _ => Ok(Self::platform_default()),
         }
@@ -93,14 +90,6 @@ mod tests {
         assert!(matches!(
             "windows-native".parse::<OcrEngine>().unwrap(),
             OcrEngine::WindowsNative
-        ));
-    }
-
-    #[test]
-    fn ocr_engine_from_str_unstructured() {
-        assert!(matches!(
-            "unstructured".parse::<OcrEngine>().unwrap(),
-            OcrEngine::Unstructured
         ));
     }
 
