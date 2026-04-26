@@ -1,0 +1,26 @@
+[package]
+name = "secondbrain-capture"
+version = { workspace = true }
+authors = { workspace = true }
+description = "secondbrain — local screen capture daemon (text-only by default, ephemeral frames)"
+repository = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+secondbrain-store = { path = "../secondbrain-store" }
+screenpipe-screen = { path = "../screenpipe-screen" }
+screenpipe-core = { path = "../screenpipe-core" }
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls"] }
+tokio = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+
+[[bin]]
+name = "secondbrain-capture-daemon"
+path = "src/bin/daemon.rs"
