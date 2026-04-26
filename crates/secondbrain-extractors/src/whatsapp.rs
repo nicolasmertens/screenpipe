@@ -9,7 +9,7 @@
 //! "whatsapp"`. Segments outlive the wall-clock day they refer to —
 //! `started_at` and `ended_at` are set to the day's UTC bounds.
 
-use crate::{apple_to_unix_ms, unix_ms_to_apple};
+use crate::apple_to_unix_ms;
 use anyhow::{Context, Result};
 use chrono::{TimeZone, Utc};
 use secondbrain_store::models::{NewExtraction, NewSegment};
@@ -95,6 +95,19 @@ pub struct SyncReport {
     pub new_watermark_unix_ms: Option<i64>,
 }
 
+/// The WhatsApp extractor stores its watermark as **Apple-microseconds**
+/// (= ZMESSAGEDATE * 1_000_000). This preserves sub-millisecond precision
+/// of the source TIMESTAMP REAL column; storing Unix-ms watermarks loses
+/// the fractional milliseconds and causes a small re-ingest tail on each
+/// run.
+fn apple_to_microseconds(apple_seconds: f64) -> i64 {
+    (apple_seconds * 1_000_000.0).round() as i64
+}
+
+fn microseconds_to_apple(micro: i64) -> f64 {
+    (micro as f64) / 1_000_000.0
+}
+
 /// Open the ChatStorage copy read-only.
 async fn open_chat_storage(path: &Path) -> Result<SqlitePool> {
     let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))?
@@ -151,8 +164,17 @@ async fn fetch_new_messages(
             .unwrap_or(false)
             || matches!(session_type, Some(1));
 
+        // ZMESSAGEDATE is declared TIMESTAMP, but SQLite stores it as
+        // INTEGER for whole-second values and REAL for fractional ones.
+        // Fall through both type readers so neither path silently drops
+        // the column to 0.0.
+        let apple_date = r
+            .try_get::<f64, _>("msg_date")
+            .or_else(|_| r.try_get::<i64, _>("msg_date").map(|i| i as f64))
+            .unwrap_or(0.0);
+
         out.push(RawMessage {
-            apple_date: r.try_get::<f64, _>("msg_date").unwrap_or(0.0),
+            apple_date,
             text: r.try_get("text").ok(),
             is_from_me: r.try_get::<i64, _>("is_from_me").unwrap_or(0) != 0,
             from_jid: r.try_get("from_jid").ok(),
@@ -267,15 +289,15 @@ pub async fn sync(store: &Store) -> Result<SyncReport> {
     }
 
     let store_pool = store.pool();
-    let prev_watermark_unix_ms = repo::get_watermark(store_pool, EXTRACTOR_NAME).await?;
-    let after_apple = match prev_watermark_unix_ms {
-        Some(ms) => unix_ms_to_apple(ms),
+    let prev_watermark_apple_us = repo::get_watermark(store_pool, EXTRACTOR_NAME).await?;
+    let after_apple = match prev_watermark_apple_us {
+        Some(us) => microseconds_to_apple(us),
         None => -1.0, // include everything
     };
 
     info!(
-        watermark_unix_ms = prev_watermark_unix_ms,
-        watermark_apple = after_apple,
+        watermark_apple_us = prev_watermark_apple_us,
+        watermark_apple_seconds = after_apple,
         "starting WhatsApp sync"
     );
 
@@ -287,9 +309,18 @@ pub async fn sync(store: &Store) -> Result<SyncReport> {
 
     let mut segment_cache: std::collections::HashMap<(String, i64), i64> =
         std::collections::HashMap::new();
-    let mut max_seen_unix: Option<i64> = prev_watermark_unix_ms;
+    let mut max_seen_apple_us: Option<i64> = prev_watermark_apple_us;
+    let mut max_seen_unix_ms: Option<i64> = None;
 
     for msg in &messages {
+        // Advance watermarks for every fetched row, including ones we end
+        // up skipping — otherwise skipped messages keep re-flowing on each
+        // run and force re-inserts of everything newer in the same fetch.
+        let apple_us = apple_to_microseconds(msg.apple_date);
+        let unix_ms = apple_to_unix_ms(msg.apple_date);
+        max_seen_apple_us = Some(max_seen_apple_us.map_or(apple_us, |w| w.max(apple_us)));
+        max_seen_unix_ms = Some(max_seen_unix_ms.map_or(unix_ms, |w| w.max(unix_ms)));
+
         let chat_jid = match msg.chat_jid.clone() {
             Some(j) => j,
             None => {
@@ -297,7 +328,6 @@ pub async fn sync(store: &Store) -> Result<SyncReport> {
                 continue;
             }
         };
-        let unix_ms = apple_to_unix_ms(msg.apple_date);
         let day = day_bucket_ms(unix_ms);
 
         let key = (chat_jid.clone(), day);
@@ -335,11 +365,10 @@ pub async fn sync(store: &Store) -> Result<SyncReport> {
         )
         .await?;
 
-        max_seen_unix = Some(max_seen_unix.map_or(unix_ms, |w| w.max(unix_ms)));
     }
 
-    if let Some(w) = max_seen_unix {
-        if Some(w) != prev_watermark_unix_ms {
+    if let Some(w) = max_seen_apple_us {
+        if Some(w) != prev_watermark_apple_us {
             repo::set_watermark(store_pool, EXTRACTOR_NAME, w).await?;
         }
     }
@@ -347,6 +376,6 @@ pub async fn sync(store: &Store) -> Result<SyncReport> {
     Ok(SyncReport {
         messages_ingested: messages.len(),
         segments_touched: segment_cache.len(),
-        new_watermark_unix_ms: max_seen_unix,
+        new_watermark_unix_ms: max_seen_unix_ms,
     })
 }
