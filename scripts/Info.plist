@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>secondbrain</string>
+    <key>CFBundleDisplayName</key>
+    <string>secondbrain</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.mrtns.secondbrain</string>
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>secondbrain-menubar</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.3</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>secondbrain reads on-screen text via Apple Vision OCR to journal what you're working on. Frames are processed locally and discarded.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>secondbrain reads window titles and visibility to associate captured text with the right app.</string>
+</dict>
+</plist>

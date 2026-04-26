@@ -32,6 +32,44 @@ const SOURCE_OCR: &str = "ocr";
 /// with two-character titlebar OCR noise.
 const MIN_TEXT_LEN: usize = 8;
 
+/// Apps + widget windows we ignore by default. Substring match,
+/// case-insensitive, applied to both app_name and window_title — see
+/// `WindowFilters::is_valid`.
+///
+/// These are macOS system surfaces that update constantly with no
+/// user-meaningful content (clock widgets, wallpaper, dock badges) or
+/// privileged surfaces we shouldn't be reading at all (lock screen,
+/// password prompts).
+pub const DEFAULT_IGNORED: &[&str] = &[
+    // System chrome — text here is just window manager noise.
+    "wallpaper",
+    "dock",
+    "window server",
+    "windowserver",
+    "control center",
+    "controlcenter",
+    "notification center",
+    "notificationcenter",
+    "system events",
+    "spotlight",
+    "systemuiserver",
+    "screensaver",
+    "screensaverengine",
+    "loginwindow",
+    "logonui",
+    // Common widget extension titles (matched on window_title via contains).
+    "widget-extension",
+    "widgetextension",
+    // Privileged surfaces.
+    "keychain access",
+    "security agent",
+    "1password",
+    "bitwarden",
+    "lastpass",
+    // Our own daemon, just in case it ever shows a window.
+    "secondbrain",
+];
+
 /// Per-window key used to dedupe segments and extractions.
 /// `(process_id, window_name, monitor_id)` — same window across runs
 /// gets the same key.
@@ -98,7 +136,8 @@ pub async fn run(store: Store, cfg: CaptureConfig) -> Result<()> {
         "starting capture loop"
     );
 
-    let filters = Arc::new(WindowFilters::new(&[], &[], &[]));
+    let ignore_owned: Vec<String> = DEFAULT_IGNORED.iter().map(|s| s.to_string()).collect();
+    let filters = Arc::new(WindowFilters::new(&ignore_owned, &[], &[]));
     let mut tracker = SegmentTracker::new();
     let pool = store.pool().clone();
 

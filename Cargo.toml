@@ -18,6 +18,7 @@ members = [
     "crates/secondbrain-store",
     "crates/secondbrain-extractors",
     "crates/secondbrain-capture",
+    "crates/secondbrain-menubar",
 ]
 exclude = [
     "apps/screenpipe-app-tauri/src-tauri",

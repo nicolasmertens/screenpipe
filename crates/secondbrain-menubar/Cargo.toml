@@ -1,0 +1,25 @@
+[package]
+name = "secondbrain-menubar"
+version = { workspace = true }
+authors = { workspace = true }
+description = "secondbrain — macOS menubar app that hosts the capture daemon"
+repository = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+secondbrain-capture = { path = "../secondbrain-capture" }
+secondbrain-store = { path = "../secondbrain-store" }
+screenpipe-core = { path = "../screenpipe-core" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = "1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tray-icon = "0.22"
+tao = "0.35"
+
+[[bin]]
+name = "secondbrain-menubar"
+path = "src/main.rs"
