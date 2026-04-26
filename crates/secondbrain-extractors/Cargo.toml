@@ -1,0 +1,26 @@
+[package]
+name = "secondbrain-extractors"
+version = { workspace = true }
+authors = { workspace = true }
+description = "secondbrain — per-source data extractors (WhatsApp, iMessage, Mail, ...)"
+repository = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+secondbrain-store = { path = "../secondbrain-store" }
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls"] }
+tokio = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+dirs = "5"
+tempfile = "3"
+
+[[bin]]
+name = "secondbrain-extract-whatsapp"
+path = "src/bin/whatsapp.rs"
