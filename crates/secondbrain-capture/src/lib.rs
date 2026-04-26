@@ -70,6 +70,43 @@ pub const DEFAULT_IGNORED: &[&str] = &[
     "secondbrain",
 ];
 
+/// Window-title markers that indicate a browser private/incognito session.
+/// These are case-insensitive substring matches against the window title.
+/// When matched, the entire window is skipped — no OCR, no segment, no
+/// extraction. We do this before sending the frame to OCR so private
+/// content never lands in the store.
+///
+/// Safari's Private mode is harder to detect reliably from the window
+/// title alone (Apple doesn't decorate it consistently across versions);
+/// for Safari we'll add an AppleScript-based check in a later pass. The
+/// markers below cover Chrome, Arc, Brave, Edge, Vivaldi, and Firefox.
+pub const BROWSER_PRIVACY_MARKERS: &[&str] = &[
+    "(incognito)",
+    "private browsing",
+    "(private)",
+    "inprivate", // Edge
+    "private mode",
+];
+
+/// App-name markers for browsers we'd want to apply private-mode
+/// detection to (i.e. apply BROWSER_PRIVACY_MARKERS to titles only when
+/// the app is a known browser, to avoid false positives like an editor
+/// window titled "private notes.txt").
+pub const KNOWN_BROWSERS: &[&str] = &[
+    "safari",
+    "google chrome",
+    "chrome",
+    "arc",
+    "brave",
+    "microsoft edge",
+    "edge",
+    "vivaldi",
+    "firefox",
+    "opera",
+    "zen",
+    "orion",
+];
+
 /// Per-window key used to dedupe segments and extractions.
 /// `(process_id, window_name, monitor_id)` — same window across runs
 /// gets the same key.
@@ -184,6 +221,29 @@ async fn sweep_monitor(
     let mut seen_keys = Vec::with_capacity(captured.len());
 
     for window in captured {
+        // Defensive second-pass filter: in case the upstream
+        // capture_all_visible_windows path doesn't apply our ignore list
+        // (it should, but production says otherwise for some apps),
+        // re-check here.
+        let app_lower = window.app_name.to_lowercase();
+        let title_lower = window.window_name.to_lowercase();
+        if DEFAULT_IGNORED
+            .iter()
+            .any(|i| app_lower.contains(i) || title_lower.contains(i))
+        {
+            debug!(app = %window.app_name, title = %window.window_name, "ignored by post-filter");
+            continue;
+        }
+        // Private/incognito browser windows: never capture.
+        let is_browser = KNOWN_BROWSERS.iter().any(|b| app_lower.contains(b));
+        if is_browser
+            && BROWSER_PRIVACY_MARKERS
+                .iter()
+                .any(|m| title_lower.contains(m))
+        {
+            debug!(app = %window.app_name, title = %window.window_name, "skipped: private browsing");
+            continue;
+        }
         let key: WindowKey = (
             window.process_id,
             window.window_name.clone(),
